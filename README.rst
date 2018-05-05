@@ -1,22 +1,24 @@
-A simple IPython kernel for bash
+A simple Jupyter kernel for the Magma computer algebra system
 
 This requires IPython 3.
 
 To install::
 
-    pip install bash_kernel
-    python -m bash_kernel.install
+    pip install magma_kernel
+    python -m magma_kernel.install
 
 To use it, run one of:
 
 .. code:: shell
 
-    ipython notebook
-    # In the notebook interface, select Bash from the 'New' menu
-    ipython qtconsole --kernel bash
-    ipython console --kernel bash
+    jupyter notebook
+    # In the notebook interface, select Magma from the 'New' menu
+    jupyter qtconsole --kernel magma
+    jupyter console --kernel magma
 
-For details of how this works, see the Jupyter docs on `wrapper kernels
-<http://jupyter-client.readthedocs.org/en/latest/wrapperkernels.html>`_, and
-Pexpect's docs on the `replwrap module
-<http://pexpect.readthedocs.org/en/latest/api/replwrap.html>`_
+This code is based on a Magma kernel for IPython written by Christopher 
+Granade, which was in turn based on the Bash example kernel by Thomas 
+Kluyver. Improvements made in the current version include Tab 
+completion, processing of help requests by returning an appropriate 
+help query URL for Magma online documentation, and the reporting of 
+partial output.

@@ -1,129 +1,170 @@
 from ipykernel.kernelbase import Kernel
-from pexpect import replwrap, EOF, spawn
+from pexpect import TIMEOUT, EOF, spawn
+from subprocess import Popen, PIPE
+from pathlib import Path
+import jupyter_core.paths
 
-from subprocess import check_output
-from os import unlink
-
-import base64
-import imghdr
-import re
 import signal
-import urllib
+import re
+import glob
 
-__version__ = '0.0.1dev1'
-
-version_pat = re.compile(r'version (\d+(\.\d+)+)')
-
-from .images import (
-    extract_image_filenames, display_data_for_image, image_setup_cmd
-)
-
+__version__ = '0.1a1'
 
 class MagmaKernel(Kernel):
     implementation = 'magma_kernel'
     implementation_version = __version__
-
-    '''
-    @property
-    def language_version(self):
-        m = version_pat.search(self.banner)
-        return m.group(1)
-
-    _banner = None
-
-    @property
-    def banner(self):
-        if self._banner is None:
-            self._banner = check_output(['bash', '--version']).decode('utf-8')
-        return self._banner
-    '''
     
-    @property
-    def banner(self):
-        return ""
-
     language_info = {'name': 'magma',
-                     'codemirror_mode': 'magma',
-                     'mimetype': 'text/x-sh',
-                     'file_extension': '.mgm'}
+                     'codemirror_mode': 'python',
+                     'mimetype': 'text/x-magma',
+                     'file_extension': '.m'}
 
     def __init__(self, **kwargs):
         Kernel.__init__(self, **kwargs)
+        self._prompt="$PEXPECT_PROMPT$"
         self._start_magma()
+        self.completions = self._fetch_completions()
 
+    def _fetch_completions(self):
+        P=Path(jupyter_core.paths.jupyter_data_dir())
+        P=P.joinpath('kernels')
+        if not P.exists():
+            P.mkdir()
+        P=P.joinpath('magma')
+        if not P.exists():
+            P.mkdir()
+        P=P.joinpath('magma-completions.'+self.language_info['version'])
+        if P.exists():
+            with P.open('r') as F:
+                completions = F.read().split()
+        else:
+            child=Popen("magma",stdin=PIPE,stdout=PIPE)
+            child.stdin.write("ListSignatures(Any);".encode())
+            child.stdin.close();
+            result=child.stdout.read().decode().split()
+            completions = sorted({r[:r.index('(')] for r in result if '(' in r})
+            with P.open('w') as F:
+                F.write('\n'.join(completions))
+        return completions
+        
     def _start_magma(self):
         # Signal handlers are inherited by forked processes, and we can't easily
         # reset it from the subprocess. Since kernelapp ignores SIGINT except in
         # message handlers, we need to temporarily reset the SIGINT handler here
-        # so that bash and its children are interruptible.
+        # so that magma and its children are interruptible.
         sig = signal.signal(signal.SIGINT, signal.SIG_DFL)
         try:
             magma = spawn('magma', echo=False, encoding='utf-8')
-            magma.expect('> ')
+            magma.expect_exact('> ')
+            banner=magma.before
             magma.sendline('SetLineEditor(false);')
-            magma.expect('> ')
-            magma.sendline('')
-            self.magmawrapper = replwrap.REPLWrapper(magma, '> ', 'SetPrompt("{}");')
+            magma.expect_exact('> ')
+            magma.sendline('SetColumns(0);')
+            magma.expect_exact('> ')
+            magma.sendline('SetPrompt("{}");'.format(self._prompt));
+            magma.expect_exact(self._prompt)
+            self.child = magma
         finally:
             signal.signal(signal.SIGINT, sig)
+        lang_version = re.search("Magma V(\d*.\d*-\d*)",banner).group(1)
+        self.banner = "Magma kernel connected to Magma "+lang_version
+        self.language_info['version']=lang_version
+        self.language_version=lang_version
 
-        # Register Bash function to write image data to temporary file
-        # self.magmawrapper.run_command(image_setup_cmd)
+    def do_help(self, keyword):
+        URL="http://magma.maths.usyd.edu.au/magma/handbook/search?chapters=1&examples=1&intrinsics=1&query="+keyword
+        content = {
+            'source': 'stdout',
+            'data': {
+#                'text/html':'<iframe src="{}" title="iframe">help</iframe>'.format(URL)
+            'text/html':'<a href="{}" target="magma_help">Magma help on {}</a>'.format(URL,keyword)
+            }
+        }
+        self.send_response(self.iopub_socket, 'display_data', content)
+
+#       we could look locally for help, but since these would be "file" URLs
+#       we cannot redirect to them anyway.
+#        pattern = re.compile('.*(<A  HREF = ".*htm.*".*{}.*</A>)'.format(keyword))
+#        results = set()
+#        for name in glob.glob('/usr/local/magma/2.23-9/doc/html/ind*.htm'):
+#            with open(name,'r') as f:
+#                for r in f.readlines():
+#                    match=pattern.match(r)
+#                    if match:
+#                        line = '<A target="magma_help" '+match.group(1)[2:]
+#                        results.add(line)
+#        content['data']['text/html']="".join(sorted(results))
+#        self.send_response(self.iopub_socket, 'display_data', content)        
 
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
+            
         if not code.strip():
             return {'status': 'ok', 'execution_count': self.execution_count,
                     'payload': [], 'user_expressions': {}}
 
+        if code[0] == '?':
+            self.do_help(code[1:])
+            return {'status': 'ok', 'execution_count': self.execution_count,
+                    'payload': [], 'user_expressions': {}}
+
         interrupted = False
+        cmdlines = code.splitlines()
+        C=self.child
         try:
-            output = self.magmawrapper.run_command(code.rstrip(), timeout=None)
+            for line in cmdlines:
+                C.sendline(line)
+                j = 0
+                #We use a fairly short timeout intercept and send back
+                #updates on what is received on stdout, if there is any.
+                counter=10
+                timeout=1
+                while True:
+                    v=C.expect_exact([self._prompt, TIMEOUT],timeout=timeout)
+                    if not silent and len(C.before) > j:
+                        stream_content = {'name': 'stdout', 'text': C.before[j:]}
+                        self.send_response(self.iopub_socket, 'stream', stream_content)
+                        j=len(C.before)
+                    if v==0:
+                        break
+                    counter-=1
+                    if counter<=0:
+                        timeout=min(300,2*counter)
+                        counter=10
+            output=C.before[j:]
         except KeyboardInterrupt:
-            self.magmawrapper.child.sendintr()
+            C.sendintr()
             interrupted = True
-            self.magmawrapper._expect_prompt()
-            output = self.magmawrapper.child.before
+            C.expect_exact(self._prompt)
+            output = C.before[j:]
         except EOF:
-            output = self.magmawrapper.child.before + 'Restarting Bash'
+            output = C.before[j:] + 'Restarting Magma'
             self._start_magma()
 
         if not silent:
-            #image_filenames, output = extract_image_filenames(output)
-
-            # Send standard output
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
-
-            # Send images, if any
-            '''
-            for filename in image_filenames:
-                try:
-                    data = display_data_for_image(filename)
-                except ValueError as e:
-                    message = {'name': 'stdout', 'text': str(e)}
-                    self.send_response(self.iopub_socket, 'stream', message)
-                else:
-                    self.send_response(self.iopub_socket, 'display_data', data)
-            '''
 
         if interrupted:
             return {'status': 'abort', 'execution_count': self.execution_count}
 
-        '''
-        try:
-            exitcode = int(self.bashwrapper.run_command('echo $?').rstrip())
-        except Exception:
-            exitcode = 1
-        
-        if exitcode:
-            error_content = {'execution_count': self.execution_count,
-                             'ename': '', 'evalue': str(exitcode), 'traceback': []}
-
-            self.send_response(self.iopub_socket, 'error', error_content)
-            error_content['status'] = 'error'
-            return error_content
-        else:
-        '''
         return {'status': 'ok', 'execution_count': self.execution_count,
                 'payload': [], 'user_expressions': {}}
+                
+    def do_complete(self, code, cursor_pos):
+        cursor_end = cursor_pos
+        cursor_start = cursor_end
+        while cursor_start>0 and code[cursor_start-1] in "abcdefghijklmnopqrstyuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_":
+            cursor_start -= 1
+        if cursor_start<cursor_end:
+            fragment = code[cursor_start:cursor_end]
+            length = len(fragment)
+            matches = [C for C in self.completions if fragment == C[:length]]
+        else:
+            matches = []
+
+        return {'status': 'ok',
+            'matches' : matches,
+            'cursor_start' : cursor_start,
+            'cursor_end' : cursor_end,
+            'metadata' : {}}
