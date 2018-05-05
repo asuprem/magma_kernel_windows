@@ -2,9 +2,11 @@ A simple Jupyter kernel for the Magma computer algebra system
 
 This requires IPython 3.
 
-To install::
+At the moment the following download and installation procedure should
+work as a normal user::
 
-    pip install magma_kernel
+    git clone https://github.com/nbruin/magma_kernel.git
+    pip install . --user
     python -m magma_kernel.install
 
 To use it, run one of:
