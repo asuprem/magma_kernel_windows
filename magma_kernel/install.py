@@ -6,7 +6,7 @@ import argparse
 from jupyter_client.kernelspec import KernelSpecManager
 from IPython.utils.tempdir import TemporaryDirectory
 
-kernel_json = {"argv":[sys.executable,"-m","bash_kernel", "-f", "{connection_file}"],
+kernel_json = {"argv":[sys.executable,"-m","magma_kernel", "-f", "{connection_file}"],
  "display_name":"Magma",
  "language":"magma",
  "codemirror_mode":"magma",
@@ -31,7 +31,7 @@ def _is_root():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description='Install KernelSpec for Bash Kernel'
+        description='Install KernelSpec for Magma Kernel'
     )
     prefix_locations = parser.add_mutually_exclusive_group()
 
