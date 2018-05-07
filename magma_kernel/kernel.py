@@ -15,7 +15,7 @@ class MagmaKernel(Kernel):
     implementation_version = __version__
     
     language_info = {'name': 'magma',
-                     'codemirror_mode': 'python',
+                     'codemirror_mode': 'magma',
                      'mimetype': 'text/x-magma',
                      'file_extension': '.m'}
 
@@ -125,11 +125,13 @@ class MagmaKernel(Kernel):
                         stream_content = {'name': 'stdout', 'text': C.before[j:]}
                         self.send_response(self.iopub_socket, 'stream', stream_content)
                         j=len(C.before)
+                        counter=10
+                        timeout=1
                     if v==0:
                         break
                     counter-=1
                     if counter<=0:
-                        timeout=min(300,2*counter)
+                        timeout=min(300,2*timeout)
                         counter=10
             output=C.before[j:]
         except KeyboardInterrupt:
