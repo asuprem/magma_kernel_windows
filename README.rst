@@ -1,13 +1,19 @@
 A simple Jupyter kernel for the Magma computer algebra system
 
-This requires IPython 3.
+This kernel requires that Magma is installed and runnable using the
+standard path, i.e., that typing the command ``magma`` will run magma.
+Furthermore, it requires Jupyter running on Py3.
 
-At the moment the following download and installation procedure should
-work as a normal user::
+If ``pip`` and ``python`` point to their Py3 versions, you can install the 
+kernel as a user with the commands::
 
-    git clone https://github.com/nbruin/magma_kernel.git
-    pip install . --user
+    pip install git+https://github.com/nbruin/magma_kernel --user
     python -m magma_kernel.install
+
+On some systems you may need to use ``pip3`` and ``python3`` instead::
+
+    pip3 install git+https://github.com/nbruin/magma_kernel --user
+    python3 -m magma_kernel.install
 
 To use it, run one of:
 
