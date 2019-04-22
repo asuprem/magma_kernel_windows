@@ -74,11 +74,11 @@ class MagmaKernel(Kernel):
     def do_help(self, keyword):
         URL="http://magma.maths.usyd.edu.au/magma/handbook/search?chapters=1&examples=1&intrinsics=1&query="+keyword
         content = {
-            'source': 'stdout',
             'data': {
-#                'text/html':'<iframe src="{}" title="iframe">help</iframe>'.format(URL)
-            'text/html':'<a href="{}" target="magma_help">Magma help on {}</a>'.format(URL,keyword)
-            }
+                'text/html': '<a href="{}" target="magma_help">Magma help on {}</a>'.format(URL,keyword),
+                'text/plain': 'Link to {}'.format(URL)
+            },
+            'metadata': {}
         }
         self.send_response(self.iopub_socket, 'display_data', content)
 
