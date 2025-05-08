@@ -1,5 +1,5 @@
 from ipykernel.kernelbase import Kernel
-from pexpect import TIMEOUT, EOF, spawn
+from wexpect import TIMEOUT, EOF, spawn
 from subprocess import Popen, PIPE
 from pathlib import Path
 import jupyter_core.paths
