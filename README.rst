@@ -1,4 +1,6 @@
-A simple Jupyter kernel for the Magma computer algebra system
+A simple Jupyter kernel for the Magma computer algebra , FOR WINDOWS.
+
+This switches `pexpect` to `wexpect`
 
 This kernel requires that Magma is installed and runnable using the
 standard path, i.e., that typing the command ``magma`` will run magma.
