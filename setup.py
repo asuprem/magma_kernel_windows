@@ -14,7 +14,7 @@ setup(
     keywords="jupyter kernel magma",
     license="BSD",
     url="https://github.com/nbruin/magma_kernel",
-    install_requires="pexpect>=3.3",
+    install_requires="wexpect>=4.0",
     packages=find_packages(),
     include_package_data=True,
     classifiers=[
